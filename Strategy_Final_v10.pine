@@ -1,0 +1,594 @@
+//@version=5
+strategy("Estratégia de Força Final v10.0 (A Tentativa Final)", overlay=true, initial_capital=1000, default_qty_value=100, default_qty_type=strategy.percent_of_equity, max_lines_count=500, max_labels_count=500)
+
+// ====================================================================================================================================================================================
+// ||                                                                        1. INPUTS DE CONTROLE GERAL                                                                             ||
+// ====================================================================================================================================================================================
+g_painel = "1. Controles do Painel"
+posicaoPainel = input.string("Direita", "Posição", options=["Direita", "Esquerda"], group=g_painel)
+tamanhoPainel = input.string("Médio", "Tamanho", options=["Pequeno", "Médio", "Grande"], group=g_painel)
+
+g_estrategia = "2. Parâmetros da Estratégia"
+balancoEntradaCompra = input.int(10, "Balanço Mínimo Compra", group=g_estrategia)
+placarEntradaCompra = input.int(15, "Placar Mínimo Compra", group=g_estrategia)
+balancoEntradaVenda = input.int(10, "Balanço Mínimo Venda", group=g_estrategia)
+placarEntradaVenda = input.int(15, "Placar Mínimo Venda", group=g_estrategia)
+
+useTakeProfit = input.bool(true, "Usar Take Profit?", group=g_estrategia)
+takeProfitPercent = input.float(2.0, "  ↳ TP (%)", minval=0.1, group=g_estrategia) / 100
+
+useStopLoss = input.bool(true, "Usar Stop Loss?", group=g_estrategia)
+stopLossPercent = input.float(1.0, "  ↳ SL (%)", minval=0.1, group=g_estrategia) / 100
+
+useBreakeven = input.bool(true, "Usar Breakeven?", group=g_estrategia)
+be_ativacao_perc = input.float(50, "  ↳ Ativar BE em (% do Risco)", minval=1, maxval=100, group=g_estrategia) / 100
+
+// ====================================================================================================================================================================================
+// ||                                                                        3. INPUTS DOS INDICADORES (LIGA/DESLIGA)                                                                  ||
+// ====================================================================================================================================================================================
+g_inds = "3. Indicadores (Ligar/Desligar)"
+use_ema = input.bool(true, "EMA", group=g_inds, inline="g1")
+use_3ema = input.bool(true, "3 EMA Cross", group=g_inds, inline="g1")
+
+use_range_filter = input.bool(true, "Range Filter", group=g_inds, inline="g2")
+use_rqk = input.bool(true, "RQK", group=g_inds, inline="g2")
+
+use_supertrend = input.bool(true, "SuperTrend", group=g_inds, inline="g3")
+use_halftrend = input.bool(true, "Half Trend", group=g_inds, inline="g3")
+
+use_range_detector = input.bool(true, "Range Detector", group=g_inds, inline="g4")
+use_heikenashi = input.bool(true, "Heiken-Ashi", group=g_inds, inline="g4")
+
+use_donchian = input.bool(true, "Donchian", group=g_inds, inline="g5")
+use_roc = input.bool(true, "ROC", group=g_inds, inline="g5")
+
+use_tsi = input.bool(true, "TSI", group=g_inds, inline="g6")
+use_tdfi = input.bool(true, "TDFI", group=g_inds, inline="g6")
+
+use_bullbear = input.bool(true, "BullBear", group=g_inds, inline="g7")
+use_vwap = input.bool(true, "VWAP", group=g_inds, inline="g7")
+
+use_ichimoku = input.bool(true, "Ichimoku", group=g_inds, inline="g8")
+use_superichi = input.bool(true, "SuperIchi", group=g_inds, inline="g8")
+
+use_bb_osc = input.bool(true, "BB Osc", group=g_inds, inline="g9")
+use_chandelier = input.bool(true, "Chandelier", group=g_inds, inline="g9")
+
+use_cci = input.bool(true, "CCI", group=g_inds, inline="g10")
+use_adx = input.bool(true, "ADX/DMI", group=g_inds, inline="g10")
+
+use_psar = input.bool(true, "Parabolic SAR", group=g_inds, inline="g11")
+use_ssl = input.bool(true, "SSL Channel", group=g_inds, inline="g11")
+
+use_dpo = input.bool(true, "DPO", group=g_inds, inline="g12")
+use_mcginley = input.bool(true, "McGinley", group=g_inds, inline="g12")
+
+use_dv = input.bool(true, "DV (OBV)", group=g_inds, inline="g13")
+use_choppiness = input.bool(true, "Choppiness", group=g_inds, inline="g13")
+
+use_stoch = input.bool(true, "Stochastic", group=g_inds, inline="g14")
+use_rsi_ma = input.bool(true, "RSI MA", group=g_inds, inline="g14")
+
+use_macd = input.bool(true, "MACD", group=g_inds, inline="g15")
+use_ehler_cycle = input.bool(true, "Ehler Cycle", group=g_inds, inline="g15")
+
+use_waddah = input.bool(true, "Waddah Attar", group=g_inds, inline="g16")
+use_chaikin = input.bool(true, "Chaikin MF", group=g_inds, inline="g16")
+
+use_volume = input.bool(true, "Volume", group=g_inds, inline="g17")
+use_awesome = input.bool(true, "Awesome Osc", group=g_inds, inline="g17")
+
+use_wolfpack = input.bool(true, "Wolfpack Id", group=g_inds, inline="g18")
+use_qqe = input.bool(true, "QQE Mod", group=g_inds, inline="g18")
+
+use_hull = input.bool(true, "HullSuite", group=g_inds, inline="g19")
+use_v7ndex = input.bool(true, "V7ndex", group=g_inds, inline="g19")
+
+use_2ema_cross = input.bool(true, "2 EMA Cross", group=g_inds, inline="g20")
+use_bb_width = input.bool(true, "BB Width", group=g_inds, inline="g20")
+
+// ====================================================================================================================================================================================
+// ||                                                                        4. CÁLCULO DOS INDICADORES                                                                                ||
+// ====================================================================================================================================================================================
+
+// --- Parâmetros Fixos ---
+ema_len_1 = 9, ema_len_2 = 21, ema_len_3 = 55, rsi_len = 14, st_atr_period = 10, st_factor = 3.0, cci_len = 20, adx_len = 14
+
+// --- Cálculos ---
+signal_ema = close > ta.ema(close, ema_len_1) ? 1 : -1
+
+ema_1 = ta.ema(close, ema_len_1)
+ema_2 = ta.ema(close, ema_len_2)
+ema_3 = ta.ema(close, ema_len_3)
+signal_3ema = ema_1 > ema_2 and ema_2 > ema_3 ? 1 : ema_1 < ema_2 and ema_2 < ema_3 ? -1 : 0
+
+atr_val_rf = ta.atr(1)
+var bool range_is_up = true
+range_long_stop = close - atr_val_rf * 2
+range_short_stop = close + atr_val_rf * 2
+range_is_up := close > range_long_stop[1] ? true : close < range_short_stop[1] ? false : range_is_up
+signal_range_filter = range_is_up ? 1 : -1
+
+signal_rqk = close > ta.ema(close, 10) ? 1 : -1
+
+[st_val, st_dir] = ta.supertrend(st_factor, st_atr_period)
+signal_supertrend = st_dir == -1 ? 1 : -1
+
+var float next_trend_ht = 0.0, var float max_low_ht = nz(low[1], low), var float min_high_ht = nz(high[1], high)
+atr_ht = ta.atr(100) / 2
+high_price_ht = ta.highest(high, 2)
+low_price_ht = ta.lowest(low, 2)
+high_ma_ht = ta.sma(high, 2)
+low_ma_ht = ta.sma(low, 2)
+var int dir_ht = 1
+if next_trend_ht == 1
+    max_low_ht := math.max(low_price_ht, max_low_ht)
+    if high_ma_ht < max_low_ht and close < low[1]
+        dir_ht := -1
+        next_trend_ht := -1
+        min_high_ht := high_price_ht
+else
+    min_high_ht := math.min(high_price_ht, min_high_ht)
+    if low_ma_ht > min_high_ht and close > high[1]
+        dir_ht := 1
+        next_trend_ht := 1
+        max_low_ht := low_price_ht
+signal_halftrend = dir_ht == 1 ? 1 : -1
+
+signal_range_detector = ta.stdev(close, 20) / ta.sma(close, 20) < 0.01 ? 0 : (close > open ? 1 : -1)
+
+ha_close = (open + high + low + close) / 4
+signal_heikenashi = ha_close > ta.ema(ha_close, 1) ? 1 : -1
+
+signal_donchian = close > (ta.highest(high, 20) + ta.lowest(low, 20)) / 2 ? 1 : -1
+
+signal_roc = ta.roc(close, 10) > 0 ? 1 : -1
+
+tsi_line = ta.tsi(close, 25, 13)
+signal_tsi = tsi_line > ta.ema(tsi_line, 7) ? 1 : -1
+
+signal_tdfi = ta.mfi(hlc3, 14) > 50 ? 1 : -1
+
+bull_power = high - ta.ema(close, 13)
+bear_power = low - ta.ema(close, 13)
+signal_bullbear = bull_power > 0 and bull_power > math.abs(bear_power) ? 1 : bear_power < 0 and math.abs(bear_power) > bull_power ? -1 : 0
+
+signal_vwap = close > ta.vwap ? 1 : -1
+
+ichimoku_tenkan_len = 9, ichimoku_kijun_len = 26, ichimoku_senkou_b_len = 52, ichimoku_displacement = 26
+tenkan = (ta.lowest(low, ichimoku_tenkan_len) + ta.highest(high, ichimoku_tenkan_len)) / 2
+kijun = (ta.lowest(low, ichimoku_kijun_len) + ta.highest(high, ichimoku_kijun_len)) / 2
+senkouA = (tenkan + kijun) / 2
+senkouB = (ta.lowest(low, ichimoku_senkou_b_len) + ta.highest(high, ichimoku_senkou_b_len)) / 2
+signal_ichimoku = close > senkouA[ichimoku_displacement] and close > senkouB[ichimoku_displacement] ? 1 : close < senkouA[ichimoku_displacement] and close < senkouB[ichimoku_displacement] ? -1 : 0
+
+signal_superichi = signal_ichimoku == 1 and signal_supertrend == 1 ? 1 : signal_ichimoku == -1 and signal_supertrend == -1 ? -1 : 0
+
+bb_basis = ta.sma(close, 20)
+bb_dev = ta.stdev(close, 20)
+bb_upper = bb_basis + 2 * bb_dev
+bb_lower = bb_basis - 2 * bb_dev
+signal_bb_osc = close > bb_upper ? -1 : close < bb_lower ? 1 : 0
+
+signal_chandelier = close > (ta.lowest(low, 22) + ta.atr(22) * 3) ? 1 : close < (ta.highest(high, 22) - ta.atr(22) * 3) ? -1 : 0
+
+signal_cci = ta.cci(close, cci_len) > 100 ? 1 : ta.cci(close, cci_len) < -100 ? -1 : 0
+
+[di_plus, di_minus, adx_val] = ta.dmi(adx_len, adx_len)
+signal_adx = di_plus > di_minus ? 1 : -1
+
+signal_psar = close > ta.sar(0.02, 0.02, 0.2) ? 1 : -1
+
+ssl_up = ta.sma(high, 10)
+ssl_down = ta.sma(low, 10)
+signal_ssl = close > ssl_up ? 1 : close < ssl_down ? -1 : 0
+
+signal_dpo = close - ta.sma(close, 21)[11] > 0 ? 1 : -1
+
+signal_mcginley = close > ta.hma(close, 14) ? 1 : -1
+
+signal_dv = ta.obv > ta.sma(ta.obv, 10) ? 1 : -1
+
+signal_choppiness = 100 * math.log10(math.sum(ta.atr(1), 14) / (ta.highest(high, 14) - ta.lowest(low, 14))) / math.log10(14) < 38.2 ? (close > open ? 1 : -1) : 0
+
+stoch_k = ta.sma(ta.stoch(close, high, low, 14), 3)
+signal_stoch = stoch_k > ta.sma(stoch_k, 3) ? 1 : -1
+
+rsi_val = ta.rsi(close, rsi_len)
+signal_rsi_ma = rsi_val > ta.sma(rsi_val, rsi_len) ? 1 : -1
+
+[macd_line, signal_line, _] = ta.macd(close, 12, 26, 9)
+signal_macd = macd_line > signal_line ? 1 : -1
+
+fisher_val = 2 * ((close - ta.lowest(low, 10)) / (ta.highest(high, 10) - ta.lowest(low, 10))) - 1
+fisher_wma = ta.wma(fisher_val, 5)
+fisher = 0.5 * math.log((1 + fisher_wma) / (1 - fisher_wma))
+signal_ehler_cycle = fisher > fisher[1] ? 1 : -1
+
+signal_waddah = not (ta.lowest(low, 20) > bb_lower and ta.highest(high, 20) < bb_upper) and close > bb_basis ? 1 : not (ta.lowest(low, 20) > bb_lower and ta.highest(high, 20) < bb_upper) and close < bb_basis ? -1 : 0
+
+ad = (high - low) == 0 ? 0 : (2 * close - high - low) / (high - low) * volume
+cmf = ta.sma(ad, 20) / ta.sma(volume, 20)
+signal_chaikin = cmf > 0 ? 1 : -1
+
+signal_volume = volume > ta.sma(volume, 20) and close > open ? 1 : volume > ta.sma(volume, 20) and close < open ? -1 : 0
+
+ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+signal_awesome = ao > 0 and ao > ao[1] ? 1 : ao < 0 and ao < ao[1] ? -1 : 0
+
+signal_wolfpack = volume > ta.sma(volume, 50) and close > open ? 1 : volume > ta.sma(volume, 50) and close < open ? -1 : 0
+
+qqe_rsi = ta.rsi(close, 6)
+signal_qqe = ta.ema(qqe_rsi, 5) > ta.ema(qqe_rsi, 5)[1] ? 1 : -1
+
+signal_hull = ta.hma(close, 55) > ta.hma(close, 55)[1] ? 1 : -1
+
+signal_v7ndex = ta.vwma(close, 14) > ta.vwma(close, 14)[1] ? 1 : -1
+
+ema_50 = ta.ema(close, 50)
+ema_200 = ta.ema(close, 200)
+signal_2ema_cross = ema_50 > ema_200 ? 1 : -1
+
+signal_bb_width = ta.bbw(close, 20, 2) > ta.bbw(close, 20, 2)[1] ? (close > open ? 1 : -1) : 0
+
+// ====================================================================================================================================================================================
+// ||                                                                        5. LÓGICA DE PLACAR E ESTRATÉGIA                                                                          ||
+// ====================================================================================================================================================================================
+
+// --- Cálculo do Placar ---
+placarCompra = 0
+placarCompra += use_ema and signal_ema == 1 ? 1 : 0
+placarCompra += use_3ema and signal_3ema == 1 ? 1 : 0
+placarCompra += use_range_filter and signal_range_filter == 1 ? 1 : 0
+placarCompra += use_rqk and signal_rqk == 1 ? 1 : 0
+placarCompra += use_supertrend and signal_supertrend == 1 ? 1 : 0
+placarCompra += use_halftrend and signal_halftrend == 1 ? 1 : 0
+placarCompra += use_range_detector and signal_range_detector == 1 ? 1 : 0
+placarCompra += use_heikenashi and signal_heikenashi == 1 ? 1 : 0
+placarCompra += use_donchian and signal_donchian == 1 ? 1 : 0
+placarCompra += use_roc and signal_roc == 1 ? 1 : 0
+placarCompra += use_tsi and signal_tsi == 1 ? 1 : 0
+placarCompra += use_tdfi and signal_tdfi == 1 ? 1 : 0
+placarCompra += use_bullbear and signal_bullbear == 1 ? 1 : 0
+placarCompra += use_vwap and signal_vwap == 1 ? 1 : 0
+placarCompra += use_ichimoku and signal_ichimoku == 1 ? 1 : 0
+placarCompra += use_superichi and signal_superichi == 1 ? 1 : 0
+placarCompra += use_bb_osc and signal_bb_osc == 1 ? 1 : 0
+placarCompra += use_chandelier and signal_chandelier == 1 ? 1 : 0
+placarCompra += use_cci and signal_cci == 1 ? 1 : 0
+placarCompra += use_adx and signal_adx == 1 ? 1 : 0
+placarCompra += use_psar and signal_psar == 1 ? 1 : 0
+placarCompra += use_ssl and signal_ssl == 1 ? 1 : 0
+placarCompra += use_dpo and signal_dpo == 1 ? 1 : 0
+placarCompra += use_mcginley and signal_mcginley == 1 ? 1 : 0
+placarCompra += use_dv and signal_dv == 1 ? 1 : 0
+placarCompra += use_choppiness and signal_choppiness == 1 ? 1 : 0
+placarCompra += use_stoch and signal_stoch == 1 ? 1 : 0
+placarCompra += use_rsi_ma and signal_rsi_ma == 1 ? 1 : 0
+placarCompra += use_macd and signal_macd == 1 ? 1 : 0
+placarCompra += use_ehler_cycle and signal_ehler_cycle == 1 ? 1 : 0
+placarCompra += use_waddah and signal_waddah == 1 ? 1 : 0
+placarCompra += use_chaikin and signal_chaikin == 1 ? 1 : 0
+placarCompra += use_volume and signal_volume == 1 ? 1 : 0
+placarCompra += use_awesome and signal_awesome == 1 ? 1 : 0
+placarCompra += use_wolfpack and signal_wolfpack == 1 ? 1 : 0
+placarCompra += use_qqe and signal_qqe == 1 ? 1 : 0
+placarCompra += use_hull and signal_hull == 1 ? 1 : 0
+placarCompra += use_v7ndex and signal_v7ndex == 1 ? 1 : 0
+placarCompra += use_2ema_cross and signal_2ema_cross == 1 ? 1 : 0
+placarCompra += use_bb_width and signal_bb_width == 1 ? 1 : 0
+
+placarVenda = 0
+placarVenda += use_ema and signal_ema == -1 ? 1 : 0
+placarVenda += use_3ema and signal_3ema == -1 ? 1 : 0
+placarVenda += use_range_filter and signal_range_filter == -1 ? 1 : 0
+placarVenda += use_rqk and signal_rqk == -1 ? 1 : 0
+placarVenda += use_supertrend and signal_supertrend == -1 ? 1 : 0
+placarVenda += use_halftrend and signal_halftrend == -1 ? 1 : 0
+placarVenda += use_range_detector and signal_range_detector == -1 ? 1 : 0
+placarVenda += use_heikenashi and signal_heikenashi == -1 ? 1 : 0
+placarVenda += use_donchian and signal_donchian == -1 ? 1 : 0
+placarVenda += use_roc and signal_roc == -1 ? 1 : 0
+placarVenda += use_tsi and signal_tsi == -1 ? 1 : 0
+placarVenda += use_tdfi and signal_tdfi == -1 ? 1 : 0
+placarVenda += use_bullbear and signal_bullbear == -1 ? 1 : 0
+placarVenda += use_vwap and signal_vwap == -1 ? 1 : 0
+placarVenda += use_ichimoku and signal_ichimoku == -1 ? 1 : 0
+placarVenda += use_superichi and signal_superichi == -1 ? 1 : 0
+placarVenda += use_bb_osc and signal_bb_osc == -1 ? 1 : 0
+placarVenda += use_chandelier and signal_chandelier == -1 ? 1 : 0
+placarVenda += use_cci and signal_cci == -1 ? 1 : 0
+placarVenda += use_adx and signal_adx == -1 ? 1 : 0
+placarVenda += use_psar and signal_psar == -1 ? 1 : 0
+placarVenda += use_ssl and signal_ssl == -1 ? 1 : 0
+placarVenda += use_dpo and signal_dpo == -1 ? 1 : 0
+placarVenda += use_mcginley and signal_mcginley == -1 ? 1 : 0
+placarVenda += use_dv and signal_dv == -1 ? 1 : 0
+placarVenda += use_choppiness and signal_choppiness == -1 ? 1 : 0
+placarVenda += use_stoch and signal_stoch == -1 ? 1 : 0
+placarVenda += use_rsi_ma and signal_rsi_ma == -1 ? 1 : 0
+placarVenda += use_macd and signal_macd == -1 ? 1 : 0
+placarVenda += use_ehler_cycle and signal_ehler_cycle == -1 ? 1 : 0
+placarVenda += use_waddah and signal_waddah == -1 ? 1 : 0
+placarVenda += use_chaikin and signal_chaikin == -1 ? 1 : 0
+placarVenda += use_volume and signal_volume == -1 ? 1 : 0
+placarVenda += use_awesome and signal_awesome == -1 ? 1 : 0
+placarVenda += use_wolfpack and signal_wolfpack == -1 ? 1 : 0
+placarVenda += use_qqe and signal_qqe == -1 ? 1 : 0
+placarVenda += use_hull and signal_hull == -1 ? 1 : 0
+placarVenda += use_v7ndex and signal_v7ndex == -1 ? 1 : 0
+placarVenda += use_2ema_cross and signal_2ema_cross == -1 ? 1 : 0
+placarVenda += use_bb_width and signal_bb_width == -1 ? 1 : 0
+
+balanco = placarCompra - placarVenda
+
+// --- Lógica da Estratégia e Breakeven ---
+var float stopLevel = na
+var float initialStopDistance = na
+
+entradaCompra = balanco >= balancoEntradaCompra and placarCompra >= placarEntradaCompra
+entradaVenda = balanco <= -balancoEntradaVenda and placarVenda >= placarEntradaVenda
+
+if (entradaCompra and strategy.position_size == 0)
+    strategy.entry("Compra", strategy.long)
+    if useStopLoss
+        stopLevel := close - (stopLossPercent * close)
+        initialStopDistance := close - stopLevel
+
+if (entradaVenda and strategy.position_size == 0)
+    strategy.entry("Venda", strategy.short)
+    if useStopLoss
+        stopLevel := close + (stopLossPercent * close)
+        initialStopDistance := stopLevel - close
+
+if strategy.position_size > 0
+    if useBreakeven and useStopLoss and close >= strategy.position_avg_price + (initialStopDistance * be_ativacao_perc)
+        stopLevel := math.max(stopLevel, strategy.position_avg_price)
+    strategy.exit("Saída Compra", stop=stopLevel, limit=useTakeProfit ? strategy.position_avg_price * (1 + takeProfitPercent) : na)
+    if entradaVenda
+        strategy.close("Compra", comment="Sinal Oposto")
+
+if strategy.position_size < 0
+    if useBreakeven and useStopLoss and close <= strategy.position_avg_price - (initialStopDistance * be_ativacao_perc)
+        stopLevel := math.min(stopLevel, strategy.position_avg_price)
+    strategy.exit("Saída Venda", stop=stopLevel, limit=useTakeProfit ? strategy.position_avg_price * (1 - takeProfitPercent) : na)
+    if entradaCompra
+        strategy.close("Venda", comment="Sinal Oposto")
+
+// ====================================================================================================================================================================================
+// ||                                                                        6. PAINEL VISUAL E PLOTS                                                                                  ||
+// ====================================================================================================================================================================================
+
+// --- Plots de Sinais no Gráfico ---
+plotshape(series=entradaCompra and strategy.position_size == 0, title="Sinal de Compra", location=location.belowbar, color=color.new(color.green, 0), style=shape.triangleup, size=size.small)
+plotshape(series=entradaVenda and strategy.position_size == 0, title="Sinal de Venda", location=location.abovebar, color=color.new(color.red, 0), style=shape.triangledown, size=size.small)
+
+// --- Lógica do Painel ---
+posicaoFinal = posicaoPainel == "Direita" ? position.top_right : position.top_left
+size_titulo = tamanhoPainel == "Pequeno" ? size.small : tamanhoPainel == "Médio" ? size.normal : size.large
+size_placar = tamanhoPainel == "Pequeno" ? size.normal : tamanhoPainel == "Médio" ? size.large : size.huge
+size_texto = tamanhoPainel == "Pequeno" ? size.tiny : tamanhoPainel == "Médio" ? size.small : size.normal
+size_lista = tamanhoPainel == "Pequeno" ? size.tiny : tamanhoPainel == "Médio" ? size.tiny : size.small
+var table dashboard = table.new(posicaoFinal, 4, 12, border_width=1)
+
+if barstate.islast
+    table.clear(dashboard, 0, 0, 3, 11)
+    table.set_position(dashboard, posicaoFinal)
+    
+    string forca = ""
+    color corFundo = color.new(color.gray, 20)
+    if balanco >= 15
+        forca := "COMPRA FORTE"
+        corFundo := color.new(color.green, 70)
+    else if balanco >= 5
+        forca := "COMPRA MÉDIA"
+        corFundo := color.new(color.green, 85)
+    else if balanco <= -15
+        forca := "VENDA FORTE"
+        corFundo := color.new(color.red, 70)
+    else if balanco <= -5
+        forca := "VENDA MÉDIA"
+        corFundo := color.new(color.red, 85)
+    else
+        forca := "NEUTRO"
+
+    table.cell(dashboard, 0, 0, forca, text_size=size_titulo, text_color=color.white, bgcolor=corFundo)
+    table.merge_cells(dashboard, 0, 0, 1, 0)
+    table.cell(dashboard, 2, 0, str.tostring(balanco), text_size=size_placar, text_color=color.white, bgcolor=corFundo)
+    table.merge_cells(dashboard, 2, 0, 3, 0)
+
+    totalIndicadores = placarCompra + placarVenda
+    table.cell(dashboard, 0, 1, "Balanço: " + str.tostring(balanco), text_size=size_texto, text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.merge_cells(dashboard, 0, 1, 1, 1)
+    table.cell(dashboard, 2, 1, "Total Ativo: " + str.tostring(totalIndicadores), text_size=size_texto, text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.merge_cells(dashboard, 2, 1, 3, 1)
+
+    color corCompra = balanco >= 15 ? color.new(color.green, 0) : balanco >= 5 ? color.new(color.yellow, 0) : color.white
+    color corVenda = balanco <= -15 ? color.new(color.red, 0) : balanco <= -5 ? color.new(color.yellow, 0) : color.white
+
+    table.cell(dashboard, 0, 2, "COMPRADOS (" + str.tostring(placarCompra) + ")", text_size=size_texto, text_color=corCompra, bgcolor=color.new(color.black, 70))
+    table.cell(dashboard, 1, 2, "VENDIDOS (" + str.tostring(placarVenda) + ")", text_size=size_texto, text_color=corVenda, bgcolor=color.new(color.black, 70))
+    table.cell(dashboard, 2, 2, "NEUTROS", text_size=size_texto, text_color=color.white, bgcolor=color.new(color.black, 70))
+    table.merge_cells(dashboard, 2, 2, 3, 2)
+    
+    string listaCompra = ""
+    if use_ema and signal_ema == 1
+        listaCompra += "• EMA\n"
+    if use_3ema and signal_3ema == 1
+        listaCompra += "• 3 EMA Cross\n"
+    if use_range_filter and signal_range_filter == 1
+        listaCompra += "• Range Filter\n"
+    if use_rqk and signal_rqk == 1
+        listaCompra += "• RQK (EMA)\n"
+    if use_supertrend and signal_supertrend == 1
+        listaCompra += "• SuperTrend\n"
+    if use_halftrend and signal_halftrend == 1
+        listaCompra += "• Half Trend\n"
+    if use_range_detector and signal_range_detector == 1
+        listaCompra += "• Range Detector\n"
+    if use_heikenashi and signal_heikenashi == 1
+        listaCompra += "• Heiken-Ashi\n"
+    if use_donchian and signal_donchian == 1
+        listaCompra += "• Donchian Trend\n"
+    if use_roc and signal_roc == 1
+        listaCompra += "• ROC\n"
+    if use_tsi and signal_tsi == 1
+        listaCompra += "• TSI\n"
+    if use_tdfi and signal_tdfi == 1
+        listaCompra += "• TDFI (MFI)\n"
+    if use_bullbear and signal_bullbear == 1
+        listaCompra += "• BullBearPower\n"
+    if use_vwap and signal_vwap == 1
+        listaCompra += "• VWAP\n"
+    if use_ichimoku and signal_ichimoku == 1
+        listaCompra += "• Ichimoku\n"
+    if use_superichi and signal_superichi == 1
+        listaCompra += "• SuperIchi\n"
+    if use_bb_osc and signal_bb_osc == 1
+        listaCompra += "• BB Oscillator\n"
+    if use_chandelier and signal_chandelier == 1
+        listaCompra += "• Chandelier Exit\n"
+    if use_cci and signal_cci == 1
+        listaCompra += "• CCI\n"
+    if use_adx and signal_adx == 1
+        listaCompra += "• ADX/DMI\n"
+    if use_psar and signal_psar == 1
+        listaCompra += "• Parabolic SAR\n"
+    if use_ssl and signal_ssl == 1
+        listaCompra += "• SSL Channel\n"
+    if use_dpo and signal_dpo == 1
+        listaCompra += "• DPO\n"
+    if use_mcginley and signal_mcginley == 1
+        listaCompra += "• McGinley (HMA)\n"
+    if use_dv and signal_dv == 1
+        listaCompra += "• DV (OBV)\n"
+    if use_choppiness and signal_choppiness == 1
+        listaCompra += "• Choppiness\n"
+    if use_stoch and signal_stoch == 1
+        listaCompra += "• Stochastic\n"
+    if use_rsi_ma and signal_rsi_ma == 1
+        listaCompra += "• RSI MA Cross\n"
+    if use_macd and signal_macd == 1
+        listaCompra += "• MACD Cross\n"
+    if use_ehler_cycle and signal_ehler_cycle == 1
+        listaCompra += "• Ehler Cycle\n"
+    if use_waddah and signal_waddah == 1
+        listaCompra += "• Waddah Attar\n"
+    if use_chaikin and signal_chaikin == 1
+        listaCompra += "• Chaikin MF\n"
+    if use_volume and signal_volume == 1
+        listaCompra += "• Volume\n"
+    if use_awesome and signal_awesome == 1
+        listaCompra += "• Awesome Osc\n"
+    if use_wolfpack and signal_wolfpack == 1
+        listaCompra += "• Wolfpack Id\n"
+    if use_qqe and signal_qqe == 1
+        listaCompra += "• QQE Mod\n"
+    if use_hull and signal_hull == 1
+        listaCompra += "• HullSuite\n"
+    if use_v7ndex and signal_v7ndex == 1
+        listaCompra += "• V7ndex\n"
+    if use_2ema_cross and signal_2ema_cross == 1
+        listaCompra += "• 2 EMA Cross\n"
+    if use_bb_width and signal_bb_width == 1
+        listaCompra += "• BB Width\n"
+
+    string listaVenda = ""
+    if use_ema and signal_ema == -1
+        listaVenda += "• EMA\n"
+    if use_3ema and signal_3ema == -1
+        listaVenda += "• 3 EMA Cross\n"
+    if use_range_filter and signal_range_filter == -1
+        listaVenda += "• Range Filter\n"
+    if use_rqk and signal_rqk == -1
+        listaVenda += "• RQK (EMA)\n"
+    if use_supertrend and signal_supertrend == -1
+        listaVenda += "• SuperTrend\n"
+    if use_halftrend and signal_halftrend == -1
+        listaVenda += "• Half Trend\n"
+    if use_range_detector and signal_range_detector == -1
+        listaVenda += "• Range Detector\n"
+    if use_heikenashi and signal_heikenashi == -1
+        listaVenda += "• Heiken-Ashi\n"
+    if use_donchian and signal_donchian == -1
+        listaVenda += "• Donchian Trend\n"
+    if use_roc and signal_roc == -1
+        listaVenda += "• ROC\n"
+    if use_tsi and signal_tsi == -1
+        listaVenda += "• TSI\n"
+    if use_tdfi and signal_tdfi == -1
+        listaVenda += "• TDFI (MFI)\n"
+    if use_bullbear and signal_bullbear == -1
+        listaVenda += "• BullBearPower\n"
+    if use_vwap and signal_vwap == -1
+        listaVenda += "• VWAP\n"
+    if use_ichimoku and signal_ichimoku == -1
+        listaVenda += "• Ichimoku\n"
+    if use_superichi and signal_superichi == -1
+        listaVenda += "• SuperIchi\n"
+    if use_bb_osc and signal_bb_osc == -1
+        listaVenda += "• BB Oscillator\n"
+    if use_chandelier and signal_chandelier == -1
+        listaVenda += "• Chandelier Exit\n"
+    if use_cci and signal_cci == -1
+        listaVenda += "• CCI\n"
+    if use_adx and signal_adx == -1
+        listaVenda += "• ADX/DMI\n"
+    if use_psar and signal_psar == -1
+        listaVenda += "• Parabolic SAR\n"
+    if use_ssl and signal_ssl == -1
+        listaVenda += "• SSL Channel\n"
+    if use_dpo and signal_dpo == -1
+        listaVenda += "• DPO\n"
+    if use_mcginley and signal_mcginley == -1
+        listaVenda += "• McGinley (HMA)\n"
+    if use_dv and signal_dv == -1
+        listaVenda += "• DV (OBV)\n"
+    if use_choppiness and signal_choppiness == -1
+        listaVenda += "• Choppiness\n"
+    if use_stoch and signal_stoch == -1
+        listaVenda += "• Stochastic\n"
+    if use_rsi_ma and signal_rsi_ma == -1
+        listaVenda += "• RSI MA Cross\n"
+    if use_macd and signal_macd == -1
+        listaVenda += "• MACD Cross\n"
+    if use_ehler_cycle and signal_ehler_cycle == -1
+        listaVenda += "• Ehler Cycle\n"
+    if use_waddah and signal_waddah == -1
+        listaVenda += "• Waddah Attar\n"
+    if use_chaikin and signal_chaikin == -1
+        listaVenda += "• Chaikin MF\n"
+    if use_volume and signal_volume == -1
+        listaVenda += "• Volume\n"
+    if use_awesome and signal_awesome == -1
+        listaVenda += "• Awesome Osc\n"
+    if use_wolfpack and signal_wolfpack == -1
+        listaVenda += "• Wolfpack Id\n"
+    if use_qqe and signal_qqe == -1
+        listaVenda += "• QQE Mod\n"
+    if use_hull and signal_hull == -1
+        listaVenda += "• HullSuite\n"
+    if use_v7ndex and signal_v7ndex == -1
+        listaVenda += "• V7ndex\n"
+    if use_2ema_cross and signal_2ema_cross == -1
+        listaVenda += "• 2 EMA Cross\n"
+    if use_bb_width and signal_bb_width == -1
+        listaVenda += "• BB Width\n"
+
+    table.cell(dashboard, 0, 3, listaCompra, text_size=size_lista, text_halign=text.align_left, text_color=color.white, bgcolor=color.new(color.black, 50))
+    table.merge_cells(dashboard, 0, 3, 0, 11)
+    table.cell(dashboard, 1, 3, listaVenda, text_size=size_lista, text_halign=text.align_left, text_color=color.white, bgcolor=color.new(color.black, 50))
+    table.merge_cells(dashboard, 1, 3, 1, 11)
+    table.cell(dashboard, 2, 3, "", text_size=size_lista, text_halign=text.align_left, text_color=color.white, bgcolor=color.new(color.black, 50))
+    table.merge_cells(dashboard, 2, 3, 3, 11)
+
+// ====================================================================================================================================================================================
+// ||                                                                        7. ALERTAS                                                                                                ||
+// ====================================================================================================================================================================================
+if (entradaCompra and strategy.position_size == 0)
+    alert("Estratégia: Possível entrada de COMPRA. Balanço: " + str.tostring(balanco) + ", Placar: " + str.tostring(placarCompra), freq = alert.freq_once_per_bar)
+if (entradaVenda and strategy.position_size == 0)
+    alert("Estratégia: Possível entrada de VENDA. Balanço: " + str.tostring(balanco) + ", Placar: " + str.tostring(placarVenda), freq = alert.freq_once_per_bar)
+
+
+
